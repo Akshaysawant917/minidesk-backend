@@ -66,4 +66,26 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   res.json({ message: "Note updated" });
 });
 
+/**
+ * Delete a note
+ */
+router.delete("/:id", authMiddleware, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.userId;
+
+  const deleted = await prisma.note.deleteMany({
+    where: {
+      id,
+      userId, // ownership check
+    },
+  });
+
+  if (deleted.count === 0) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+
+  res.json({ message: "Note deleted" });
+});
+
+
 export default router;

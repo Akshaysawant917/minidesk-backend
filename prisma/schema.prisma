@@ -33,6 +33,7 @@ model Todo {
   id        String   @id @default(uuid())
   content   String
   status    String   // "TODAY" or "LATER"
+  completed Boolean  @default(false) 
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())

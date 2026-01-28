@@ -48,30 +48,49 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 /**
- * Move todo (TODAY ↔ LATER)
+ * Update todo (status and/or completed)
  */
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, completed } = req.body;
   const userId = req.user.userId;
 
-  if (status !== "TODAY" && status !== "LATER") {
-    return res.status(400).json({ error: "Invalid status" });
+  const data = {};
+
+  // ✅ Validate & update status ONLY if provided
+  if (status !== undefined) {
+    if (status !== "TODAY" && status !== "LATER") {
+      return res.status(400).json({ error: "Invalid status" });
+    }
+    data.status = status;
   }
 
-  const todo = await prisma.todo.updateMany({
+  // ✅ Update completed ONLY if provided
+  if (typeof completed === "boolean") {
+    data.completed = completed;
+  }
+
+  // 🚫 Nothing valid to update
+  if (Object.keys(data).length === 0) {
+    return res
+      .status(400)
+      .json({ error: "No valid fields to update" });
+  }
+
+  const result = await prisma.todo.updateMany({
     where: {
       id,
-      userId, // ensures ownership
+      userId, // ownership check
     },
-    data: { status },
+    data,
   });
 
-  if (todo.count === 0) {
+  if (result.count === 0) {
     return res.status(404).json({ error: "Todo not found" });
   }
 
   res.json({ message: "Todo updated" });
 });
+
 
 export default router;

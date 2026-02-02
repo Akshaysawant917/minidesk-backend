@@ -8,6 +8,7 @@ import protectedRoutes from "./routes/protected.routes.js";
 import workLogRoutes from "./routes/worklogs.routes.js";
 import todoRoutes from "./routes/todos.routes.js";
 import noteRoutes from "./routes/notes.routes.js";
+import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
 app.use(cors());
@@ -21,5 +22,8 @@ app.use("/api", protectedRoutes);
 app.use("/api/worklogs", workLogRoutes);
 app.use("/api/todos", todoRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 export default app;
+
+

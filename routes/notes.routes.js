@@ -31,13 +31,34 @@ router.post("/", authMiddleware, async (req, res) => {
  */
 router.get("/", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
+  const limit = parseInt(req.query.limit) || 10;
+  const cursor = req.query.cursor; // note.id
 
   const notes = await prisma.note.findMany({
     where: { userId },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [
+      { updatedAt: "desc" },
+      { id: "desc" },
+    ],
+    take: limit + 1,
+    ...(cursor && {
+      skip: 1,
+      cursor: { id: cursor },
+    }),
   });
 
-  res.json(notes);
+  const hasMore = notes.length > limit;
+  const items = hasMore ? notes.slice(0, limit) : notes;
+
+  const nextCursor = hasMore
+    ? items[items.length - 1].id
+    : null;
+
+  res.json({
+    items,
+    nextCursor,
+    hasMore,
+  });
 });
 
 /**
@@ -48,23 +69,30 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   const { title, content } = req.body;
   const userId = req.user.userId;
 
-  const updated = await prisma.note.updateMany({
+  // 1️⃣ Ensure note exists & belongs to user
+  const note = await prisma.note.findFirst({
     where: {
       id,
-      userId, // ensures ownership
-    },
-    data: {
-      title,
-      content,
+      userId,
     },
   });
 
-  if (updated.count === 0) {
+  if (!note) {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  res.json({ message: "Note updated" });
+  // 2️⃣ Update and RETURN the updated note
+  const updatedNote = await prisma.note.update({
+    where: { id },
+    data: {
+      ...(title !== undefined && { title }),
+      ...(content !== undefined && { content }),
+    },
+  });
+
+  res.json(updatedNote);
 });
+
 
 /**
  * Delete a note

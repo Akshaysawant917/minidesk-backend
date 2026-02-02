@@ -44,21 +44,40 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 /**
- * List my work logs
+ * List my work logs (paginated)
  */
 router.get("/", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
+  const limit = parseInt(req.query.limit) || 10;
+  const cursor = req.query.cursor; // workLog.id
 
   const logs = await prisma.workLog.findMany({
     where: { userId },
-    orderBy: { date: "desc" },
+    orderBy: [
+      { date: "desc" },
+      { id: "desc" },
+    ],
+    take: limit + 1,
+    ...(cursor && {
+      skip: 1,
+      cursor: { id: cursor },
+    }),
   });
 
-  res.json(logs);
+  const hasMore = logs.length > limit;
+  const items = hasMore ? logs.slice(0, limit) : logs;
+  const nextCursor = hasMore ? items[items.length - 1].id : null;
+
+  res.json({
+    items,
+    nextCursor,
+    hasMore,
+  });
 });
 
+
 /**
- * Update a work log (edit)
+ * Update a work log
  */
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
@@ -69,23 +88,20 @@ router.patch("/:id", authMiddleware, async (req, res) => {
     return res.status(400).json({ error: "Content is required" });
   }
 
-  const result = await prisma.workLog.updateMany({
-    where: {
-      id,
-      userId, // ensures user owns the log
-    },
-    data: {
-      content,
-    },
+  const log = await prisma.workLog.findFirst({
+    where: { id, userId },
   });
 
-  if (result.count === 0) {
-    return res.status(404).json({
-      error: "Work log not found",
-    });
+  if (!log) {
+    return res.status(404).json({ error: "Work log not found" });
   }
 
-  res.json({ message: "Work log updated" });
+  const updated = await prisma.workLog.update({
+    where: { id },
+    data: { content },
+  });
+
+  res.json(updated);
 });
 
 

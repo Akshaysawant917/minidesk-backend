@@ -30,14 +30,54 @@ router.post("/", authMiddleware, async (req, res) => {
   res.json(todo);
 });
 
-/**
- * List my todos
- */
+
+router.get("/completed", authMiddleware, async (req, res) => {
+  const userId = req.user.userId;
+  const limit = parseInt(req.query.limit) || 10;
+  const cursor = req.query.cursor; // this will be todo.id
+
+  const completedTodos = await prisma.todo.findMany({
+    where: {
+      userId,
+      completed: true,
+    },
+    orderBy: [
+      { updatedAt: "desc" },
+      { id: "desc" }, // secondary sort for stability
+    ],
+    take: limit + 1,
+    ...(cursor && {
+      skip: 1,
+      cursor: { id: cursor }, // ✅ UNIQUE FIELD
+    }),
+  });
+
+  const hasMore = completedTodos.length > limit;
+  const items = hasMore
+    ? completedTodos.slice(0, limit)
+    : completedTodos;
+
+  const nextCursor = hasMore
+    ? items[items.length - 1].id
+    : null;
+
+  res.json({
+    items,
+    nextCursor,
+    hasMore,
+  });
+});
+
+
+
 router.get("/", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
 
   const todos = await prisma.todo.findMany({
-    where: { userId },
+    where: {
+      userId,
+      completed: false, // ✅ IMPORTANT
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -46,6 +86,7 @@ router.get("/", authMiddleware, async (req, res) => {
     later: todos.filter((t) => t.status === "LATER"),
   });
 });
+
 
 /**
  * Update todo (status and/or completed)

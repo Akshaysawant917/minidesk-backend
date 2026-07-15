@@ -7,6 +7,7 @@ import debugRoutes from "./routes/debug.routes.js";
 import protectedRoutes from "./routes/protected.routes.js";
 import workLogRoutes from "./routes/worklogs.routes.js";
 import todoRoutes from "./routes/todos.routes.js";
+import bookmarkRoutes from "./routes/bookmarks.routes.js";
 import noteRoutes from "./routes/notes.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 
@@ -21,6 +22,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api", protectedRoutes);
 app.use("/api/worklogs", workLogRoutes);
 app.use("/api/todos", todoRoutes);
+app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/notes", noteRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 

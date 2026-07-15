@@ -33,7 +33,7 @@ router.get("/summary", authMiddleware, async (req, res) => {
       prisma.todo.findMany({
         where: {
           userId,
-          status: "TODAY",
+          status: "high",
           completed: false,
         },
         orderBy: { createdAt: "desc" },
@@ -47,7 +47,7 @@ router.get("/summary", authMiddleware, async (req, res) => {
       prisma.todo.count({
         where: {
           userId,
-          status: "TODAY",
+          status: "high",
           completed: false,
         },
       }),

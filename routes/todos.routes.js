@@ -8,21 +8,23 @@ const router = Router();
  * Create a todo
  */
 router.post("/", authMiddleware, async (req, res) => {
-  const { content, status } = req.body; 
+  const { content, status, tag } = req.body; 
   const userId = req.user.userId;
-
+  // console.log("status",status);
+  
   if (!content) {
     return res.status(400).json({ error: "Content is required" });
   }
 
-  if (status !== "TODAY" && status !== "LATER") {
-    return res.status(400).json({ error: "Invalid status" });
+  if (status !== "high" && status !== "medium" && status !== "low") {
+    return res.status(400).json({ error: "Invalid status. Must be 'high', 'medium', or 'low'" });
   }
 
   const todo = await prisma.todo.create({
     data: {
       content,
       status,
+      ...(tag !== undefined && { tag }),
       userId,
     },
   });
@@ -82,8 +84,9 @@ router.get("/", authMiddleware, async (req, res) => {
   });
 
   res.json({
-    today: todos.filter((t) => t.status === "TODAY"),
-    later: todos.filter((t) => t.status === "LATER"),
+    high: todos.filter((t) => t.status === "high"),
+    medium: todos.filter((t) => t.status === "medium"),
+    low: todos.filter((t) => t.status === "low"),
   });
 });
 
@@ -93,15 +96,15 @@ router.get("/", authMiddleware, async (req, res) => {
  */
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { status, completed } = req.body;
+  const { status, completed, tag } = req.body;
   const userId = req.user.userId;
 
   const data = {};
 
   // ✅ Validate & update status ONLY if provided
   if (status !== undefined) {
-    if (status !== "TODAY" && status !== "LATER") {
-      return res.status(400).json({ error: "Invalid status" });
+    if (status !== "high" && status !== "medium" && status !== "low") {
+      return res.status(400).json({ error: "Invalid status. Must be 'high', 'medium', or 'low'" });
     }
     data.status = status;
   }
@@ -109,6 +112,14 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   // ✅ Update completed ONLY if provided
   if (typeof completed === "boolean") {
     data.completed = completed;
+  }
+
+  // ✅ Update tag ONLY if provided
+  if (tag !== undefined) {
+    if (typeof tag !== "string") {
+      return res.status(400).json({ error: "Invalid tag" });
+    }
+    data.tag = tag;
   }
 
   // 🚫 Nothing valid to update

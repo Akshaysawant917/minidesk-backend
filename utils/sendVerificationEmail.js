@@ -2,7 +2,7 @@ import { resend } from "../resend.js";
 
 export async function sendVerificationEmail(email, token) {
   const verifyUrl =
-    `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
+    `https://www.getminidesk.com/verify-email?token=${token}`;
 
   await resend.emails.send({
     from: "MiniDesk <onboarding@resend.dev>",

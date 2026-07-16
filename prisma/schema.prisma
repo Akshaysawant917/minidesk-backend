@@ -9,7 +9,7 @@ datasource db {
 
 model User {
   id        String     @id @default(uuid())
-  username  String     @unique
+  username  String?    @unique
   email     String?    @unique
   emailVerified Boolean @default(false)
   password  String
@@ -19,6 +19,8 @@ model User {
   todos     Todo[]
   notes     Note[]
   bookmarks Bookmark[]
+  jobs      Job[]
+  commands  Command[]
 }
 
 
@@ -41,7 +43,7 @@ model Todo {
   userId    String
   user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
-   updatedAt DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 
@@ -64,5 +66,39 @@ model Bookmark {
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+enum JobStatus {
+  applied
+  interviewing
+  offer
+  offer_accepted
+  offer_rejected
+  rejected
+}
+
+model Job {
+  id              String     @id @default(uuid())
+  company         String
+  role            String
+  location        String
+  source          String
+  status          JobStatus
+  notes           String
+  salary          String?
+  applicationDate DateTime?
+  interviewDate   DateTime?
+  userId          String
+  user            User       @relation(fields: [userId], references: [id])
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+model Command {
+  id        String   @id @default(uuid())
+  command   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
 }
 

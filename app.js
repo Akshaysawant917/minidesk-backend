@@ -9,6 +9,8 @@ import workLogRoutes from "./routes/worklogs.routes.js";
 import todoRoutes from "./routes/todos.routes.js";
 import bookmarkRoutes from "./routes/bookmarks.routes.js";
 import noteRoutes from "./routes/notes.routes.js";
+import jobRoutes from "./routes/jobs.routes.js";
+import commandRoutes from "./routes/commands.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
@@ -24,6 +26,8 @@ app.use("/api/worklogs", workLogRoutes);
 app.use("/api/todos", todoRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/notes", noteRoutes);
+app.use("/api/jobs", jobRoutes);
+app.use("/api/commands", commandRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 
 export default app;

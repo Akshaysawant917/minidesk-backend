@@ -39,6 +39,13 @@ router.post("/signup", async (req, res) => {
       await sendVerificationEmail(user.email, verifyToken);
     } catch (err) {
       console.error("Failed to send verification email:", err);
+      // rollback created user to avoid having unverified leftover accounts
+      try {
+        await prisma.user.delete({ where: { id: user.id } });
+      } catch (delErr) {
+        console.error("Failed to delete user after email send failure:", delErr);
+      }
+      return res.status(500).json({ error: "Failed to send verification email" });
     }
 
     res.json({

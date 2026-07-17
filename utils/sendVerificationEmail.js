@@ -5,7 +5,7 @@ export async function sendVerificationEmail(email, token) {
     `https://www.getminidesk.com/verify-email?token=${token}`;
 
   await resend.emails.send({
-    from: "MiniDesk <onboarding@resend.dev>",
+    from: "MiniDesk <noreply@getminidesk.com>",
     to: email,
     subject: "Verify your MiniDesk account",
     html: `

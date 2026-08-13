@@ -8,20 +8,20 @@ const router = Router();
  * Create a note
  */
 router.post("/", authMiddleware, async (req, res) => {
-  const { title, content } = req.body;
+  const { title, content, folderId } = req.body;
   const userId = req.user.userId;
 
   if (!content) {
     return res.status(400).json({ error: "Content is required" });
   }
 
-  const note = await prisma.note.create({
-    data: {
-      title,
-      content,
-      userId,
-    },
-  });
+  // if folderId provided, ensure it belongs to the user
+  if (folderId) {
+    const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
+    if (!folder) return res.status(400).json({ error: "Invalid folderId" });
+  }
+
+  const note = await prisma.note.create({ data: { title, content, userId, ...(folderId && { folderId }) } });
 
   res.json(note);
 });
@@ -66,7 +66,7 @@ router.get("/", authMiddleware, async (req, res) => {
  */
 router.patch("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
-  const { title, content } = req.body;
+  const { title, content, folderId } = req.body;
   const userId = req.user.userId;
 
   // 1️⃣ Ensure note exists & belongs to user
@@ -82,13 +82,20 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   }
 
   // 2️⃣ Update and RETURN the updated note
-  const updatedNote = await prisma.note.update({
-    where: { id },
-    data: {
-      ...(title !== undefined && { title }),
-      ...(content !== undefined && { content }),
-    },
-  });
+  const data = {};
+  if (title !== undefined) data.title = title;
+  if (content !== undefined) data.content = content;
+  if (folderId !== undefined) {
+    if (folderId === null) {
+      data.folderId = null;
+    } else {
+      const folder = await prisma.folder.findFirst({ where: { id: folderId, userId } });
+      if (!folder) return res.status(400).json({ error: "Invalid folderId" });
+      data.folderId = folderId;
+    }
+  }
+
+  const updatedNote = await prisma.note.update({ where: { id }, data });
 
   res.json(updatedNote);
 });

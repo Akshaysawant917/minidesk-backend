@@ -14,13 +14,13 @@ model User {
   emailVerified Boolean @default(false)
   password  String
   createdAt DateTime   @default(now())
-
   workLogs  WorkLog[]
   todos     Todo[]
   notes     Note[]
   bookmarks Bookmark[]
   jobs      Job[]
   commands  Command[]
+  folders   Folder[]
 }
 
 
@@ -53,8 +53,24 @@ model Note {
   content   String
   userId    String
   user      User     @relation(fields: [userId], references: [id])
+  folderId  String?
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Folder {
+  id        String   @id @default(uuid())
+  name      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  notes     Note[]
+  position  Int?     
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 model Bookmark {

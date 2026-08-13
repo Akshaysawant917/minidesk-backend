@@ -8,13 +8,35 @@ import { sendVerificationEmail } from "../utils/sendVerificationEmail.js";
 const router = Router();
 
 router.post("/signup", async (req, res) => {
-  const { email, password, username } = req.body;
+  let { email, password, username } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password required" });
   }
 
+  // normalize email to avoid duplicate accounts differing only by case/whitespace
+  email = String(email).toLowerCase().trim();
+
   try {
+    // check for existing user with same normalized email
+    const existing = await prisma.user.findUnique({ where: { email } });
+
+    if (existing) {
+      if (!existing.emailVerified) {
+        // resend verification email instead of creating a duplicate
+        const verifyToken = jwt.sign({ userId: existing.id, email: existing.email }, process.env.JWT_SECRET, { expiresIn: "24h" });
+        try {
+          await sendVerificationEmail(existing.email, verifyToken);
+          return res.json({ message: "Verification email resent." });
+        } catch (err) {
+          console.error("Failed to resend verification email:", err);
+          return res.status(500).json({ error: "Failed to send verification email" });
+        }
+      }
+
+      return res.status(409).json({ error: "Email or username already exists" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const userData = {
@@ -27,9 +49,7 @@ router.post("/signup", async (req, res) => {
       userData.username = username;
     }
 
-    const user = await prisma.user.create({
-      data: userData,
-    });
+    const user = await prisma.user.create({ data: userData });
 
     // generate a short verification token (JWT) valid for 24h
     const verifyToken = jwt.sign({ userId: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "24h" });
@@ -106,15 +126,15 @@ router.get("/verify-email", async (req, res) => {
 });
 
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password required" });
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
+  email = String(email).toLowerCase().trim();
+
+  const user = await prisma.user.findUnique({ where: { email } });
 
   if (!user) {
     return res.status(401).json({ error: "Invalid credentials" });

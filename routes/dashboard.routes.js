@@ -118,3 +118,59 @@ router.get("/summary", authMiddleware, async (req, res) => {
 });
 
 export default router;
+
+// Charts endpoint: GET /charts?range=7d|30d
+router.get("/charts", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const range = req.query.range === "30d" ? 30 : 7;
+
+    const today = new Date();
+    // normalize to local midnight
+    today.setHours(0, 0, 0, 0);
+
+    // build an array of dates (oldest -> newest)
+    const dates = [];
+    for (let i = range - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      dates.push(new Date(d));
+    }
+
+    // For each date, count completed todos where updatedAt falls within that day
+    const trendPromises = dates.map((d) => {
+      const start = new Date(d);
+      const end = new Date(d);
+      end.setDate(end.getDate() + 1);
+      return prisma.todo.count({
+        where: {
+          userId,
+          completed: true,
+          updatedAt: { gte: start, lt: end },
+        },
+      });
+    });
+
+    const trendCounts = await Promise.all(trendPromises);
+
+    const trend = dates.map((d, idx) => ({
+      date: d.toISOString().slice(0, 10),
+      count: trendCounts[idx],
+    }));
+
+    // pending tasks grouped by tag
+    const pendingByTag = await prisma.todo.groupBy({
+      by: ["tag"],
+      where: { userId, completed: false },
+      _count: { id: true },
+    });
+
+    // normalize tag results (replace null with 'inbox' or 'untagged')
+    const pending = pendingByTag.map((p) => ({ tag: p.tag || "untagged", count: p._count.id }));
+
+    res.json({ trend, pendingByTag: pending });
+  } catch (err) {
+    console.error("Dashboard charts error:", err);
+    res.status(500).json({ error: "Failed to load charts" });
+  }
+});

@@ -15,12 +15,33 @@ import commandRoutes from "./routes/commands.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
+// CORS: allow exact frontend origins or a configured FRONTEND_URL
+const whitelist = [
+	"https://getminidesk.com",
+	"https://www.getminidesk.com",
+];
+if (process.env.FRONTEND_URL) whitelist.push(process.env.FRONTEND_URL);
+
 const corsOptions = {
-	origin: process.env.FRONTEND_URL || "http://localhost:3000",
+	origin: (origin, callback) => {
+		// allow server-to-server or curl (no origin)
+		if (!origin) return callback(null, true);
+		try {
+			const url = new URL(origin);
+			const hostname = url.hostname;
+			if (whitelist.includes(origin) || whitelist.includes(url.origin) || hostname.endsWith(".getminidesk.com")) {
+				return callback(null, true);
+			}
+		} catch (e) {
+			// if origin isn't a valid URL, reject
+		}
+		callback(new Error("CORS: Not allowed origin"));
+	},
 	credentials: true,
 	methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 	allowedHeaders: ["Content-Type", "Authorization"],
 };
+
 app.use(cors(corsOptions));
 
 app.use(express.json());

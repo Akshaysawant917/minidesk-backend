@@ -156,11 +156,11 @@ router.post("/login", async (req, res) => {
       email: user.email,
     },
     process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "30d" }
   );
 
+  // return token in JSON for header-based auth (frontend will store/use it)
   res.json({ token });
-
 });
 
 

@@ -15,7 +15,13 @@ import commandRoutes from "./routes/commands.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
 
 const app = express();
-app.use(cors());
+const corsOptions = {
+	origin: process.env.FRONTEND_URL || "http://localhost:3000",
+	credentials: true,
+	methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+	allowedHeaders: ["Content-Type", "Authorization"],
+};
+app.use(cors(corsOptions));
 
 app.use(express.json());
 

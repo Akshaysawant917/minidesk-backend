@@ -75,11 +75,20 @@ router.get("/completed", authMiddleware, async (req, res) => {
 router.get("/", authMiddleware, async (req, res) => {
   const userId = req.user.userId;
 
+  // optional tag filter from query, e.g. GET /?tag=work
+  const tag = req.query.tag;
+
+  const where = {
+    userId,
+    completed: false, // ✅ IMPORTANT
+  };
+
+  if (tag && tag !== "all") {
+    where.tag = tag;
+  }
+
   const todos = await prisma.todo.findMany({
-    where: {
-      userId,
-      completed: false, // ✅ IMPORTANT
-    },
+    where,
     orderBy: { createdAt: "desc" },
   });
 

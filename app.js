@@ -13,6 +13,7 @@ import folderRoutes from "./routes/folders.routes.js";
 import jobRoutes from "./routes/jobs.routes.js";
 import commandRoutes from "./routes/commands.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import aiRoutes from "./routes/ai.routes.js";
 
 const app = express();
 // CORS: allow exact frontend origins or a configured FRONTEND_URL
@@ -58,6 +59,7 @@ app.use("/api/folders", folderRoutes);
 app.use("/api/jobs", jobRoutes);
 app.use("/api/commands", commandRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/ai", aiRoutes);
 
 export default app;
 

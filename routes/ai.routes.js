@@ -35,8 +35,46 @@ function isMiniDeskRelatedRequest(message) {
 
   const normalized = text.toLowerCase();
 
+  const knownMiniDeskTerms = [
+    "minidesk",
+    "note",
+    "notes",
+    "todo",
+    "todos",
+    "task",
+    "tasks",
+    "worklog",
+    "worklogs",
+    "bookmark",
+    "bookmarks",
+    "job",
+    "jobs",
+    "tracker",
+    "command",
+    "commands",
+    "folder",
+    "folders",
+    "dashboard",
+    "semantic search",
+    "search my",
+    "show me my",
+    "what did i",
+    "create a note",
+    "create note",
+    "create a todo",
+    "create todo",
+    "create a worklog",
+    "create worklog",
+  ];
+
+  if (knownMiniDeskTerms.some((term) => normalized.includes(term))) {
+    return true;
+  }
+
   const blockedPatterns = [
     "capital of france",
+    "what is the capital of",
+    "write me a python game",
     "python game",
     "today's cricket score",
     "cricket score",
@@ -45,40 +83,44 @@ function isMiniDeskRelatedRequest(message) {
     "poem",
     "quantum physics",
     "recipe for chicken",
+    "who is elon musk",
     "elon musk",
     "college assignment",
     "hack a website",
     "website hack",
+    "what is react",
+    "what is a binary search tree",
+    "explain recursion",
+    "teach me dsa",
+    "what is a",
+    "what is an",
+    "what is the",
+    "explain what a",
+    "who is",
+    "write me",
+    "how to build",
   ];
 
   if (blockedPatterns.some((pattern) => normalized.includes(pattern))) {
     return false;
   }
 
-  const allowedPatterns = [
-    /\bminidesk\b/i,
-    /\bnotes?\b/i,
-    /\btodos?\b/i,
-    /\bworklogs?\b/i,
-    /\bwork log\b/i,
-    /\bbookmarks?\b/i,
-    /\bjobs?\b/i,
-    /\btracker\b/i,
-    /\bcommands?\b/i,
-    /\bfolders?\b/i,
-    /\bdashboard\b/i,
-    /\bsemantic search\b/i,
-    /\bsearch my\b/i,
-    /\bshow me my\b/i,
-    /\bwhat did i (write|save|record|say|do|work on)\b/i,
-    /\bcreate (a )?(note|todo|task|worklog|bookmark|job|command)\b/i,
-    /\b(find|search|summarize|summarise|read|show|analyze|analyse|organize|organise)\s+(my\s+)?(notes?|todos?|tasks?|worklogs?|bookmarks?|jobs?)\b/i,
-    /\bwhat can i do with minidesk\b/i,
-    /\bhow does .*minidesk\b/i,
-    /\bhow do i .*minidesk\b/i,
+  const likelyGeneralKnowledgePatterns = [
+    /\bwhat is\b/i,
+    /\bwhat's\b/i,
+    /\bexplain\b/i,
+    /\bteach me\b/i,
+    /\bwho is\b/i,
+    /\bwrite me\b/i,
+    /\bhow to\b/i,
+    /\bwhat are\b/i,
   ];
 
-  return allowedPatterns.some((pattern) => pattern.test(text));
+  if (likelyGeneralKnowledgePatterns.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+
+  return true;
 }
 
 const tools = [
@@ -154,7 +196,7 @@ const tools = [
   {
     type: "function",
     name: "searchNotesSemantic",
-    description: "Search the authenticated user's MiniDesk notes using stored embeddings for semantic similarity matching. Use this only when the request is asking about information stored in the user's MiniDesk notes.",
+    description: "Search the authenticated user's MiniDesk notes for information that may answer the user's request. Use this when the request could reasonably refer to information stored in the user's notes, even if the user does not explicitly say 'my notes'. Never search data belonging to another user.",
     parameters: {
       type: "object",
       properties: {
@@ -171,7 +213,7 @@ const tools = [
   {
     type: "function",
     name: "searchWorkLogsSemantic",
-    description: "Search the authenticated user's MiniDesk work logs using stored embeddings for semantic similarity matching. Use this only when the request is asking about the user's stored work history.",
+    description: "Search the authenticated user's MiniDesk worklogs for information that may answer the user's request. Use this when the request could reasonably refer to work the user previously recorded, even if the user does not explicitly say 'my worklogs'. Never search data belonging to another user.",
     parameters: {
       type: "object",
       properties: {

@@ -108,12 +108,13 @@ export async function updateNoteEmbeddingById(noteId, nextText) {
 
   const embedding = await generateEmbedding(text);
 
-  return prisma.note.update({
-    where: { id: noteId },
-    data: {
-      embedding: `[{${Array.from({ length: EMBEDDING_DIMENSION }, () => 0).join(",")}}]`,
-    },
-  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Note" SET "embedding" = $1::vector WHERE id = $2`,
+    embedding,
+    noteId
+  );
+
+  return { id: noteId, embedding };
 }
 
 export async function generateAndStoreNoteEmbedding(noteId) {
@@ -133,12 +134,13 @@ export async function generateAndStoreNoteEmbedding(noteId) {
 
   const embedding = await generateEmbedding(text);
 
-  return prisma.note.update({
-    where: { id: noteId },
-    data: {
-      embedding,
-    },
-  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE "Note" SET "embedding" = $1::vector WHERE id = $2`,
+    embedding,
+    noteId
+  );
+
+  return { id: noteId, embedding };
 }
 
 export async function generateAndStoreWorkLogEmbedding(workLogId) {
@@ -158,12 +160,13 @@ export async function generateAndStoreWorkLogEmbedding(workLogId) {
 
   const embedding = await generateEmbedding(text);
 
-  return prisma.workLog.update({
-    where: { id: workLogId },
-    data: {
-      embedding,
-    },
-  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE "WorkLog" SET "embedding" = $1::vector WHERE id = $2`,
+    embedding,
+    workLogId
+  );
+
+  return { id: workLogId, embedding };
 }
 
 export async function backfillEmbeddingsForNotes(batchSize = 20) {

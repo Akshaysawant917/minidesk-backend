@@ -107,21 +107,6 @@ function isMiniDeskRelatedRequest(message) {
     return false;
   }
 
-  const likelyGeneralKnowledgePatterns = [
-    /\bwhat is\b/i,
-    /\bwhat's\b/i,
-    /\bexplain\b/i,
-    /\bteach me\b/i,
-    /\bwho is\b/i,
-    /\bwrite me\b/i,
-    /\bhow to\b/i,
-    /\bwhat are\b/i,
-  ];
-
-  if (likelyGeneralKnowledgePatterns.some((pattern) => pattern.test(text))) {
-    return false;
-  }
-
   return true;
 }
 

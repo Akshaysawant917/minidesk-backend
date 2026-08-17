@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../prismaClient.js";
 import authMiddleware from "../middleware/auth.middleware.js";
+import { generateAndStoreNoteEmbedding } from "../services/embedding.service.js";
 
 const router = Router();
 
@@ -22,6 +23,12 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 
   const note = await prisma.note.create({ data: { title, content, userId, ...(folderId && { folderId }) } });
+
+  try {
+    await generateAndStoreNoteEmbedding(note.id);
+  } catch (error) {
+    console.error("Failed to generate note embedding for new note:", error?.message || error);
+  }
 
   res.json(note);
 });
@@ -96,6 +103,12 @@ router.patch("/:id", authMiddleware, async (req, res) => {
   }
 
   const updatedNote = await prisma.note.update({ where: { id }, data });
+
+  try {
+    await generateAndStoreNoteEmbedding(updatedNote.id);
+  } catch (error) {
+    console.error("Failed to generate note embedding for updated note:", error?.message || error);
+  }
 
   res.json(updatedNote);
 });

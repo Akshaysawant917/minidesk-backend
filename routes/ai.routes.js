@@ -3,6 +3,8 @@ import OpenAI from "openai";
 import prisma from "../prismaClient.js";
 import authMiddleware from "../middleware/auth.middleware.js";
 import {
+  generateAndStoreNoteEmbedding,
+  generateAndStoreWorkLogEmbedding,
   searchNotesByEmbedding,
   searchWorkLogsByEmbedding,
 } from "../services/embedding.service.js";
@@ -681,6 +683,12 @@ router.post("/chat", authMiddleware, async (req, res) => {
         try {
           const note = await createNoteForUser(userId, args);
 
+          try {
+            await generateAndStoreNoteEmbedding(note.id);
+          } catch (error) {
+            console.error("Failed to generate embedding for AI-created note:", error?.message || error);
+          }
+
           input.push({
             type: "function_call_output",
             call_id: toolCall.call_id,
@@ -745,6 +753,12 @@ router.post("/chat", authMiddleware, async (req, res) => {
       if (toolCall.name === "createWorklog") {
         try {
           const worklog = await createWorklogForUser(userId, args);
+
+          try {
+            await generateAndStoreWorkLogEmbedding(worklog.id);
+          } catch (error) {
+            console.error("Failed to generate embedding for AI-created work log:", error?.message || error);
+          }
 
           input.push({
             type: "function_call_output",

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import prisma from "../prismaClient.js";
 import authMiddleware from "../middleware/auth.middleware.js";
+import { generateAndStoreWorkLogEmbedding } from "../services/embedding.service.js";
 
 const router = Router();
 
@@ -39,6 +40,12 @@ router.post("/", authMiddleware, async (req, res) => {
       userId,
     },
   });
+
+  try {
+    await generateAndStoreWorkLogEmbedding(log.id);
+  } catch (error) {
+    console.error("Failed to generate work log embedding for new work log:", error?.message || error);
+  }
 
   res.json(log);
 });
@@ -100,6 +107,12 @@ router.patch("/:id", authMiddleware, async (req, res) => {
     where: { id },
     data: { content },
   });
+
+  try {
+    await generateAndStoreWorkLogEmbedding(updated.id);
+  } catch (error) {
+    console.error("Failed to generate work log embedding for updated work log:", error?.message || error);
+  }
 
   res.json(updated);
 });

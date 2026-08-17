@@ -2,6 +2,10 @@ import { Router } from "express";
 import OpenAI from "openai";
 import prisma from "../prismaClient.js";
 import authMiddleware from "../middleware/auth.middleware.js";
+import {
+  searchNotesByEmbedding,
+  searchWorkLogsByEmbedding,
+} from "../services/embedding.service.js";
 
 const router = Router();
 const openai = new OpenAI({
@@ -19,11 +23,69 @@ const validRanges = [
   "last_30_days",
 ];
 
+const OUT_OF_SCOPE_RESPONSE =
+  "I can help with MiniDesk tasks, notes, worklogs, todos, jobs, and your stored data. I can't help with unrelated general questions.";
+
+function isMiniDeskRelatedRequest(message) {
+  const text = String(message ?? "").trim();
+
+  if (!text) {
+    return false;
+  }
+
+  const normalized = text.toLowerCase();
+
+  const blockedPatterns = [
+    "capital of france",
+    "python game",
+    "today's cricket score",
+    "cricket score",
+    "weather today",
+    "write a poem",
+    "poem",
+    "quantum physics",
+    "recipe for chicken",
+    "elon musk",
+    "college assignment",
+    "hack a website",
+    "website hack",
+  ];
+
+  if (blockedPatterns.some((pattern) => normalized.includes(pattern))) {
+    return false;
+  }
+
+  const allowedPatterns = [
+    /\bminidesk\b/i,
+    /\bnotes?\b/i,
+    /\btodos?\b/i,
+    /\bworklogs?\b/i,
+    /\bwork log\b/i,
+    /\bbookmarks?\b/i,
+    /\bjobs?\b/i,
+    /\btracker\b/i,
+    /\bcommands?\b/i,
+    /\bfolders?\b/i,
+    /\bdashboard\b/i,
+    /\bsemantic search\b/i,
+    /\bsearch my\b/i,
+    /\bshow me my\b/i,
+    /\bwhat did i (write|save|record|say|do|work on)\b/i,
+    /\bcreate (a )?(note|todo|task|worklog|bookmark|job|command)\b/i,
+    /\b(find|search|summarize|summarise|read|show|analyze|analyse|organize|organise)\s+(my\s+)?(notes?|todos?|tasks?|worklogs?|bookmarks?|jobs?)\b/i,
+    /\bwhat can i do with minidesk\b/i,
+    /\bhow does .*minidesk\b/i,
+    /\bhow do i .*minidesk\b/i,
+  ];
+
+  return allowedPatterns.some((pattern) => pattern.test(text));
+}
+
 const tools = [
   {
     type: "function",
     name: "getWorkLogs",
-    description: "Get the authenticated user's work logs for a natural date range like this_week, last_7_days, or this_month.",
+    description: "Get the authenticated user's MiniDesk work logs for a date range. This only reads the current user's stored work history and never touches unrelated data.",
     parameters: {
       type: "object",
       properties: {
@@ -49,7 +111,7 @@ const tools = [
   {
     type: "function",
     name: "getTodos",
-    description: "Get the authenticated user's todos with optional filters for completion, status, and tag.",
+    description: "Read the authenticated user's MiniDesk todos and tasks with optional filters for completion, status, and tag. Use only for the current user's MiniDesk task data.",
     parameters: {
       type: "object",
       properties: {
@@ -75,7 +137,7 @@ const tools = [
   {
     type: "function",
     name: "searchNotes",
-    description: "Search the authenticated user's notes by a query string in title or content.",
+    description: "Search the authenticated user's MiniDesk notes by query text in title or content. Use this only when the request is about the user's stored notes.",
     parameters: {
       type: "object",
       properties: {
@@ -85,6 +147,112 @@ const tools = [
         },
       },
       required: ["query"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "searchNotesSemantic",
+    description: "Search the authenticated user's MiniDesk notes using stored embeddings for semantic similarity matching. Use this only when the request is asking about information stored in the user's MiniDesk notes.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Natural-language query to match semantically against the user's note embeddings.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "searchWorkLogsSemantic",
+    description: "Search the authenticated user's MiniDesk work logs using stored embeddings for semantic similarity matching. Use this only when the request is asking about the user's stored work history.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "Natural-language query to match semantically against the user's work log embeddings.",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "createNote",
+    description: "Create a MiniDesk note for the authenticated user. This tool only creates a note in the current user's MiniDesk account and never accepts an ownership override.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: ["string", "null"],
+          description: "Optional note title. Use null if no title is needed.",
+        },
+        content: {
+          type: "string",
+          description: "The note body. Use a short, clear note. If the user provided multiple bullet points, format them as lines starting with '- '.",
+        },
+        folderId: {
+          type: ["string", "null"],
+          description: "Optional folder ID for the note. Must belong to the authenticated user.",
+        },
+      },
+      required: ["title", "content", "folderId"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "createTodo",
+    description: "Create a MiniDesk todo/task for the authenticated user using the current user's task data. The backend enforces ownership and validation.",
+    parameters: {
+      type: "object",
+      properties: {
+        content: {
+          type: "string",
+          description: "The todo item text. If the user gave multiple tasks, format each point with '- ' before each line.",
+        },
+        status: {
+          type: "string",
+          enum: ["high", "medium", "low"],
+          description: "Todo priority/status. Must be one of high, medium, or low.",
+        },
+        tag: {
+          type: ["string", "null"],
+          description: "Optional tag. Use null if no tag is needed.",
+        },
+      },
+      required: ["content", "status", "tag"],
+      additionalProperties: false,
+    },
+    strict: true,
+  },
+  {
+    type: "function",
+    name: "createWorklog",
+    description: "Create a MiniDesk work log for the authenticated user. Use today's date by default if no date is provided and store it under the current user's account only.",
+    parameters: {
+      type: "object",
+      properties: {
+        content: {
+          type: "string",
+          description: "The work log content. If the user provided multiple items, format each bullet with '- ' before each line.",
+        },
+        date: {
+          type: ["string", "null"],
+          description: "Optional work log date in YYYY-MM-DD format. If omitted, today's date is used.",
+        },
+      },
+      required: ["content", "date"],
       additionalProperties: false,
     },
     strict: true,
@@ -260,6 +428,92 @@ async function searchNotesForUser(userId, query) {
   }));
 }
 
+async function createNoteForUser(userId, data = {}) {
+  const { title, content, folderId } = data;
+
+  if (!content || !String(content).trim()) {
+    throw new Error("Content is required");
+  }
+
+  if (folderId) {
+    const folder = await prisma.folder.findFirst({
+      where: {
+        id: folderId,
+        userId,
+      },
+    });
+
+    if (!folder) {
+      throw new Error("Invalid folderId");
+    }
+  }
+
+  return prisma.note.create({
+    data: {
+      title: title ?? null,
+      content: String(content).trim(),
+      userId,
+      ...(folderId ? { folderId } : {}),
+    },
+  });
+}
+
+async function createTodoForUser(userId, data = {}) {
+  const { content, status, tag } = data;
+
+  if (!content || !String(content).trim()) {
+    throw new Error("Content is required");
+  }
+
+  if (status !== "high" && status !== "medium" && status !== "low") {
+    throw new Error("Invalid status. Must be 'high', 'medium', or 'low'");
+  }
+
+  return prisma.todo.create({
+    data: {
+      content: String(content).trim(),
+      status,
+      ...(tag !== undefined && tag !== null ? { tag: String(tag).trim() } : {}),
+      userId,
+    },
+  });
+}
+
+async function createWorklogForUser(userId, data = {}) {
+  const { content, date } = data;
+
+  if (!content || !String(content).trim()) {
+    throw new Error("Content is required");
+  }
+
+  const logDate = date ? new Date(`${String(date)}T00:00:00`) : new Date();
+
+  if (Number.isNaN(logDate.getTime())) {
+    throw new Error("Invalid date. Use YYYY-MM-DD format.");
+  }
+
+  logDate.setHours(0, 0, 0, 0);
+
+  const existingLog = await prisma.workLog.findFirst({
+    where: {
+      userId,
+      date: logDate,
+    },
+  });
+
+  if (existingLog) {
+    throw new Error("Work log for that date already exists");
+  }
+
+  return prisma.workLog.create({
+    data: {
+      content: String(content).trim(),
+      date: logDate,
+      userId,
+    },
+  });
+}
+
 router.post("/chat", authMiddleware, async (req, res) => {
   const { message } = req.body;
   const userId = req.user.userId;
@@ -268,8 +522,15 @@ router.post("/chat", authMiddleware, async (req, res) => {
     return res.status(400).json({ error: "Message is required" });
   }
 
+  const userMessage = String(message).trim();
+
+  if (!isMiniDeskRelatedRequest(userMessage)) {
+    return res.json({
+      answer: OUT_OF_SCOPE_RESPONSE,
+    });
+  }
+
   try {
-    const userMessage = String(message).trim();
     let input = [
       {
         role: "user",
@@ -343,6 +604,129 @@ router.post("/chat", authMiddleware, async (req, res) => {
             items: notes,
           }),
         });
+        continue;
+      }
+
+      if (toolCall.name === "searchNotesSemantic") {
+        const notes = await searchNotesByEmbedding(userId, args.query, args.limit ?? 10);
+
+        input.push({
+          type: "function_call_output",
+          call_id: toolCall.call_id,
+          output: JSON.stringify({
+            count: notes.length,
+            items: notes,
+          }),
+        });
+        continue;
+      }
+
+      if (toolCall.name === "searchWorkLogsSemantic") {
+        const logs = await searchWorkLogsByEmbedding(userId, args.query, args.limit ?? 10);
+
+        input.push({
+          type: "function_call_output",
+          call_id: toolCall.call_id,
+          output: JSON.stringify({
+            count: logs.length,
+            items: logs,
+          }),
+        });
+        continue;
+      }
+
+      if (toolCall.name === "createNote") {
+        try {
+          const note = await createNoteForUser(userId, args);
+
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: true,
+              created: {
+                id: note.id,
+                title: note.title,
+                content: note.content,
+                folderId: note.folderId,
+                createdAt: note.createdAt,
+                updatedAt: note.updatedAt,
+              },
+            }),
+          });
+        } catch (error) {
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: false,
+              error: error.message || "Failed to create note",
+            }),
+          });
+        }
+        continue;
+      }
+
+      if (toolCall.name === "createTodo") {
+        try {
+          const todo = await createTodoForUser(userId, args);
+
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: true,
+              created: {
+                id: todo.id,
+                content: todo.content,
+                status: todo.status,
+                tag: todo.tag,
+                completed: todo.completed,
+                createdAt: todo.createdAt,
+                updatedAt: todo.updatedAt,
+              },
+            }),
+          });
+        } catch (error) {
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: false,
+              error: error.message || "Failed to create todo",
+            }),
+          });
+        }
+        continue;
+      }
+
+      if (toolCall.name === "createWorklog") {
+        try {
+          const worklog = await createWorklogForUser(userId, args);
+
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: true,
+              created: {
+                id: worklog.id,
+                content: worklog.content,
+                date: new Date(worklog.date).toISOString().slice(0, 10),
+                createdAt: worklog.createdAt,
+              },
+            }),
+          });
+        } catch (error) {
+          input.push({
+            type: "function_call_output",
+            call_id: toolCall.call_id,
+            output: JSON.stringify({
+              success: false,
+              error: error.message || "Failed to create work log",
+            }),
+          });
+        }
       }
     }
 

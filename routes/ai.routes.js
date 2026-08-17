@@ -28,86 +28,60 @@ const validRanges = [
 const OUT_OF_SCOPE_RESPONSE =
   "I can help with MiniDesk tasks, notes, worklogs, todos, jobs, and your stored data. I can't help with unrelated general questions.";
 
-function isMiniDeskRelatedRequest(message) {
+async function isMiniDeskRequest(message) {
   const text = String(message ?? "").trim();
 
   if (!text) {
     return false;
   }
 
-  const normalized = text.toLowerCase();
+  const classifierModel = process.env.OPENAI_SCOPE_CLASSIFIER_MODEL || "gpt-5-mini";
 
-  const knownMiniDeskTerms = [
-    "minidesk",
-    "note",
-    "notes",
-    "todo",
-    "todos",
-    "task",
-    "tasks",
-    "worklog",
-    "worklogs",
-    "bookmark",
-    "bookmarks",
-    "job",
-    "jobs",
-    "tracker",
-    "command",
-    "commands",
-    "folder",
-    "folders",
-    "dashboard",
-    "semantic search",
-    "search my",
-    "show me my",
-    "what did i",
-    "create a note",
-    "create note",
-    "create a todo",
-    "create todo",
-    "create a worklog",
-    "create worklog",
-  ];
+  const response = await openai.responses.create({
+    model: classifierModel,
+    input: [
+      {
+        role: "system",
+        content:
+          "You are a scope classifier for MiniDesk. Return only JSON with a boolean field named isMiniDeskRelated. MiniDesk is a personal productivity app for notes, worklogs, todos, bookmarks, job tracker, commands, and stored user data. Return true when the user request could reasonably be answered using MiniDesk functionality or the user's MiniDesk data, even if the request does not explicitly mention MiniDesk, notes, worklogs, or tasks. Return false for clearly unrelated general knowledge, content generation, current external information, or anything that cannot reasonably be answered using MiniDesk. Do not answer the user's question. Only classify scope.",
+      },
+      {
+        role: "user",
+        content: text,
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "mini_desk_scope_check",
+        schema: {
+          type: "object",
+          properties: {
+            isMiniDeskRelated: { type: "boolean" },
+          },
+          required: ["isMiniDeskRelated"],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
 
-  if (knownMiniDeskTerms.some((term) => normalized.includes(term))) {
-    return true;
+  let parsed = response?.output_parsed ?? {};
+
+  if (!parsed || typeof parsed !== "object" || !Object.keys(parsed).length) {
+    try {
+      parsed = JSON.parse(response?.output_text || "{}") || {};
+    } catch (error) {
+      parsed = {};
+    }
   }
 
-  const blockedPatterns = [
-    "capital of france",
-    "what is the capital of",
-    "write me a python game",
-    "python game",
-    "today's cricket score",
-    "cricket score",
-    "weather today",
-    "write a poem",
-    "poem",
-    "quantum physics",
-    "recipe for chicken",
-    "who is elon musk",
-    "elon musk",
-    "college assignment",
-    "hack a website",
-    "website hack",
-    "what is react",
-    "what is a binary search tree",
-    "explain recursion",
-    "teach me dsa",
-    "what is a",
-    "what is an",
-    "what is the",
-    "explain what a",
-    "who is",
-    "write me",
-    "how to build",
-  ];
+  const isMiniDeskRelated = Boolean(parsed.isMiniDeskRelated);
 
-  if (blockedPatterns.some((pattern) => normalized.includes(pattern))) {
-    return false;
-  }
+  console.log(`[SCOPE] message: ${text}`);
+  console.log(`[SCOPE] result: ${isMiniDeskRelated ? "MINIDESK_RELATED" : "OUT_OF_SCOPE"}`);
 
-  return true;
+  return isMiniDeskRelated;
 }
 
 const tools = [
@@ -553,13 +527,15 @@ router.post("/chat", authMiddleware, async (req, res) => {
 
   const userMessage = String(message).trim();
 
-  if (!isMiniDeskRelatedRequest(userMessage)) {
-    return res.json({
-      answer: OUT_OF_SCOPE_RESPONSE,
-    });
-  }
-
   try {
+    const isMiniDeskRelated = await isMiniDeskRequest(userMessage);
+
+    if (!isMiniDeskRelated) {
+      return res.json({
+        answer: OUT_OF_SCOPE_RESPONSE,
+      });
+    }
+
     let input = [
       {
         role: "user",
